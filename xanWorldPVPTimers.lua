@@ -1,5 +1,4 @@
 --Provides timers for WORLD PVP objectives
---Uses SendAddonMessage to help determine whom is in control (GUILD ONLY)
 
 local f = CreateFrame("frame","xanWorldPVPTimers_EventFrame",UIParent)
 f:SetScript("OnEvent", function(self, event, ...) if self[event] then return self[event](self, event, ...) end end)
@@ -133,7 +132,14 @@ end
 	CORE
 --------------------------]]
 
+local upt_throt  = 0
+
 f:HookScript("OnUpdate", function(self, elapsed)
+	--do some throttling
+	upt_throt = upt_throt + elapsed
+	if upt_throt < 1 then return end
+	upt_throt = 0
+			
 	if GetNumWorldPVPAreas() < 1 then return end
 	
 	for i=1, GetNumWorldPVPAreas() do
