@@ -1,8 +1,8 @@
-## Interface: 40100
+## Interface: 40200
 ## Title: xanWorldPVPTimers
 ## Notes: A small addon that provides tiny timers for World PVP zones.
 ## Author: Xruptor
-## Version: 1.2
+## Version: 1.3
 ## SavedVariables: XanWPT_DB
 
 xanWorldPVPTimers.lua
