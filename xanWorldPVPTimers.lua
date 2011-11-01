@@ -1,12 +1,15 @@
 --Provides timers for WORLD PVP objectives
 
 local f = CreateFrame("frame","xanWorldPVPTimers_EventFrame",UIParent)
+
 f:SetScript("OnEvent", function(self, event, ...) if self[event] then return self[event](self, event, ...) end end)
 
 local pvpIconID = {
 	[1] = "Interface\\Icons\\Spell_Frost_ChillingBlast",
 	[2] = "Interface\\Icons\\achievement_zone_tolbarad",
 }
+
+--– local Timer = LibStub:GetLibrary("AceTimer-3.0")
 
 --[[------------------------
 	ENABLE
@@ -23,9 +26,6 @@ function f:PLAYER_LOGIN()
 	self:CreateFrames()
 	self:PositionFrames()
 
-	self:UnregisterEvent("PLAYER_LOGIN")
-	self.PLAYER_LOGIN = nil
-	
 	SLASH_XANWORLDPVPTIMERS1 = "/xwpt";
 	SlashCmdList["XANWORLDPVPTIMERS"] = function(cmd)
 		local a,b,c=strfind(cmd, "(%S+)"); --contiguous string of non-space characters
@@ -126,6 +126,9 @@ function f:PLAYER_LOGIN()
 	
 	local ver = GetAddOnMetadata("xanWorldPVPTimers","Version") or '1.0'
 	DEFAULT_CHAT_FRAME:AddMessage(string.format("|cFF99CC33%s|r [v|cFFDF2B2B%s|r] Loaded", "xanWorldPVPTimers", ver or "1.0"))
+	
+	self:UnregisterEvent("PLAYER_LOGIN")
+	self.PLAYER_LOGIN = nil
 end
 
 --[[------------------------
