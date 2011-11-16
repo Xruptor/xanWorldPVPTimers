@@ -127,6 +127,8 @@ function f:PLAYER_LOGIN()
 	local ver = GetAddOnMetadata("xanWorldPVPTimers","Version") or '1.0'
 	DEFAULT_CHAT_FRAME:AddMessage(string.format("|cFF99CC33%s|r [v|cFFDF2B2B%s|r] Loaded", "xanWorldPVPTimers", ver or "1.0"))
 	
+	self:RegisterEvent("PLAYER_ENTERING_WORLD")
+	
 	self:UnregisterEvent("PLAYER_LOGIN")
 	self.PLAYER_LOGIN = nil
 end
@@ -152,9 +154,18 @@ f:HookScript("OnUpdate", function(self, elapsed)
 
 		if tFrm and tFrm.txt and tFrm:IsVisible() then
 			if not isActive and startTime and startTime > 0 then
-				tFrm.txt:SetText(f:GetTimeText(startTime))
+				tFrm.txt:SetText(self:GetTimeText(startTime))
+				--check to see if we need to do an icon update
+				if tFrm.needsUpdate < 0 or tFrm.needsUpdate > 0 then
+					tFrm.needsUpdate = 0
+					self:getClaimIcons()
+				end
 			else
 				tFrm.txt:SetText("In Progress")
+				if tFrm.needsUpdate ~= 1 then
+					tFrm.needsUpdate = 1
+					self:getClaimIcons()
+				end
 			end
 		end
 		
@@ -178,7 +189,7 @@ function f:CreateFrames()
 		local frm = CreateFrame("frame", string.format("xanWorldPVPTimers_%s", localizedName), UIParent)
 		
 		frm.pvpID = pvpID
-		frm:SetWidth(90)
+		frm:SetWidth(115)
 		frm:SetHeight(27)
 		frm:SetMovable(true)
 		frm:SetClampedToScreen(true)
@@ -200,22 +211,32 @@ function f:CreateFrames()
 		
 		frm:EnableMouse(true)
 		
-		local t = frm:CreateTexture("$parentIcon", "ARTWORK")
+		local icon = frm:CreateTexture("$parentIcon", "ARTWORK")
 		if pvpIconID[i] then
-			t:SetTexture(pvpIconID[i])
+			icon:SetTexture(pvpIconID[i])
 		else
-			t:SetTexture("Interface\\Icons\\Trade_Blacksmithing")
+			icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
 		end
-		t:SetWidth(16)
-		t:SetHeight(16)
-		t:SetPoint("TOPLEFT",5,-6)
-		frm.icon = t
+		icon:SetWidth(16)
+		icon:SetHeight(16)
+		icon:SetPoint("TOPLEFT",5,-6)
+		frm.icon = icon
 
+		local fac = frm:CreateTexture("$parentFaction", "ARTWORK")
+		fac:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+		fac:SetWidth(16)
+		fac:SetHeight(16)
+		fac:SetPoint("TOPLEFT", icon, "TOPRIGHT", 5,0)
+		frm.faction = fac
+		
 		local g = frm:CreateFontString("$parentText", "ARTWORK", "GameFontNormalSmall")
-		g:SetJustifyH("LEFT")
-		g:SetPoint("CENTER",8,0)
+		g:SetJustifyH("RIGHT")
+		g:SetPoint("CENTER", fac, 40,0)
 		g:SetText("")
 		frm.txt = g
+		
+		--this will trigger a faction check update if greater then zero
+		frm.needsUpdate = -1
 
 		frm:SetScript("OnMouseDown",function(self)
 			if (IsShiftKeyDown()) then
@@ -283,7 +304,95 @@ function f:GetTimeText(timeLeft)
 		return nil
 	end
 end
+
+--[[------------------------
+	GET CONTROL DATA
+--------------------------]]
+
+function f:PLAYER_ENTERING_WORLD()
+	f:getClaimIcons()
+end
+
+function f:getClaimIcons()
+	--get wintergrasp data
+	self:WGMapControlled()
+	--get tol barad data
+	self:TBMapControlled()
+end
+
+function f:TBMapControlled()
+
+	--1 = Wintergrasp
+	--2 = Tol Barad
 	
+	--check to see if we should even bother loading the faction image
+	local pvpID, localizedName, isActive, canQueue, startTime, canEnter = GetWorldPVPAreaInfo(2)
+	local tFrm = _G[string.format("xanWorldPVPTimers_%s", localizedName)]
+
+	if tFrm and tFrm:IsVisible() then
+		if isActive then
+			tFrm.faction:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+			return
+		end
+
+		--otherwise get the faction icon :P
+		local previousMapID = GetCurrentMapAreaID()
+		SetMapByID(708) --set to TB
+		
+		local _, controlledByLocalized, textureIndex = GetMapLandmarkInfo(1)
+		SetMapByID(previousMapID)
+
+		if textureIndex == 48 then --Horde
+			tFrm.faction:SetTexture("Interface\\Icons\\achievement_pvp_h_16")
+		elseif textureIndex == 46 then --Alliance
+			tFrm.faction:SetTexture("Interface\\Icons\\achievement_pvp_a_16")
+		else
+			--in instance or something or currently in progress
+			tFrm.faction:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+		end
+	end
+end
+
+function f:WGMapControlled()
+	--1 = Wintergrasp
+	--2 = Tol Barad
+	
+	--check to see if we should even bother loading the faction image
+	local pvpID, localizedName, isActive, canQueue, startTime, canEnter = GetWorldPVPAreaInfo(1)
+	local tFrm = _G[string.format("xanWorldPVPTimers_%s", localizedName)]
+
+	if tFrm and tFrm:IsVisible() then
+		if isActive then
+			tFrm.faction:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+			return
+		elseif GetCurrentMapContinent() ~= 4 then
+			--this only works if your on northrend sorry
+			tFrm.faction:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+			return
+		end
+		--position 11 in getmapzones is wintergrasp
+		local wintergrasp = select(11,GetMapZones(4))
+		local continent,zone,faction = GetCurrentMapContinent(),GetCurrentMapZone()
+		SetMapZoom(4) --set northrend zoomed map
+		for i=1,GetNumMapLandmarks() do
+			local name, description, textureIndex, x, y, mapLinkID = GetMapLandmarkInfo(i);
+			if name == wintergrasp then
+				if textureIndex == 48 then --horde
+					tFrm.faction:SetTexture("Interface\\Icons\\achievement_pvp_h_16")
+				elseif textureIndex == 46 then --alliance
+					tFrm.faction:SetTexture("Interface\\Icons\\achievement_pvp_a_16")
+				elseif textureIndex == 101 then
+					tFrm.faction:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+				else
+					tFrm.faction:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+				end
+			end
+		end
+		SetMapZoom(continent,zone)
+	end
+end
+
+
 --[[------------------------
 	LAYOUT SAVE/RESTORE
 --------------------------]]
