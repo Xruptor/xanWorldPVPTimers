@@ -128,7 +128,8 @@ function f:PLAYER_LOGIN()
 	DEFAULT_CHAT_FRAME:AddMessage(string.format("|cFF99CC33%s|r [v|cFFDF2B2B%s|r] Loaded", "xanWorldPVPTimers", ver or "1.0"))
 	
 	self:RegisterEvent("PLAYER_ENTERING_WORLD")
-	
+	self:RegisterEvent("CHAT_MSG_ADDON")
+
 	self:UnregisterEvent("PLAYER_LOGIN")
 	self.PLAYER_LOGIN = nil
 end
@@ -152,7 +153,7 @@ f:HookScript("OnUpdate", function(self, elapsed)
 		local pvpID, localizedName, isActive, canQueue, startTime, canEnter = GetWorldPVPAreaInfo(i)
 		local tFrm = _G[string.format("xanWorldPVPTimers_%s", localizedName)]
 
-		if tFrm and tFrm.txt and tFrm:IsVisible() then
+		if tFrm and tFrm:IsVisible() then
 			if not isActive and startTime and startTime > 0 then
 				tFrm.txt:SetText(self:GetTimeText(startTime))
 				--check to see if we need to do an icon update
@@ -235,8 +236,9 @@ function f:CreateFrames()
 		g:SetText("")
 		frm.txt = g
 		
-		--this will trigger a faction check update if greater then zero
+		--this will trigger a faction check update if greater then or less then zero
 		frm.needsUpdate = -1
+		frm.currFaction = 0  --save the current faction
 
 		frm:SetScript("OnMouseDown",function(self)
 			if (IsShiftKeyDown()) then
@@ -314,10 +316,13 @@ function f:PLAYER_ENTERING_WORLD()
 end
 
 function f:getClaimIcons()
+	local sendReq = false
 	--get wintergrasp data
-	self:WGMapControlled()
+	if self:WGMapControlled() then sendReq = true end
 	--get tol barad data
-	self:TBMapControlled()
+	if self:TBMapControlled() then sendReq = true end
+	--send a request only if it's requested
+	if sendReq then self:requestUpdate() end
 end
 
 function f:TBMapControlled()
@@ -331,8 +336,9 @@ function f:TBMapControlled()
 
 	if tFrm and tFrm:IsVisible() then
 		if isActive then
-			tFrm.faction:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-			return
+			tFrm.currFaction = 3
+			tFrm.faction:SetTexture("Interface\\Icons\\achievement_arena_2v2_1")
+			return false
 		end
 
 		--otherwise get the faction icon :P
@@ -344,13 +350,29 @@ function f:TBMapControlled()
 
 		if textureIndex == 48 then --Horde
 			tFrm.faction:SetTexture("Interface\\Icons\\achievement_pvp_h_16")
+			tFrm.currFaction = 1
+			return false
 		elseif textureIndex == 46 then --Alliance
 			tFrm.faction:SetTexture("Interface\\Icons\\achievement_pvp_a_16")
-		else
-			--in instance or something or currently in progress
-			tFrm.faction:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+			tFrm.currFaction = 2
+			return false
 		end
+		
+		--something went wrong check to see if we have a stored value
+		if tFrm.currFaction == 1 then --Horde
+			tFrm.faction:SetTexture("Interface\\Icons\\achievement_pvp_h_16")
+			return false
+		elseif tFrm.currFaction == 2 then --Alliance
+			tFrm.faction:SetTexture("Interface\\Icons\\achievement_pvp_a_16")
+			return false
+		end
+		--oblivously we still don't have a clue so request an update
+		tFrm.currFaction = 0
+		tFrm.faction:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+		return true
 	end
+	
+	return false
 end
 
 function f:WGMapControlled()
@@ -363,35 +385,85 @@ function f:WGMapControlled()
 
 	if tFrm and tFrm:IsVisible() then
 		if isActive then
-			tFrm.faction:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-			return
+			tFrm.currFaction = 3
+			tFrm.faction:SetTexture("Interface\\Icons\\achievement_arena_2v2_1")
+			return false
 		elseif GetCurrentMapContinent() ~= 4 then
-			--this only works if your on northrend sorry
-			tFrm.faction:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-			return
+			--this only works if your on northrend sorry, request an update only if we don't have something to work with
+			if tFrm.currFaction == 0 then return true end
+			return false
 		end
 		--position 11 in getmapzones is wintergrasp
 		local wintergrasp = select(11,GetMapZones(4))
-		local continent,zone,faction = GetCurrentMapContinent(),GetCurrentMapZone()
+		local continent, zone, faction = GetCurrentMapContinent(), GetCurrentMapZone()
 		SetMapZoom(4) --set northrend zoomed map
-		for i=1,GetNumMapLandmarks() do
-			local name, description, textureIndex, x, y, mapLinkID = GetMapLandmarkInfo(i);
+		
+		for i=1, GetNumMapLandmarks() do
+			local name, description, textureIndex, x, y, mapLinkID = GetMapLandmarkInfo(i)
 			if name == wintergrasp then
 				if textureIndex == 48 then --horde
+					tFrm.currFaction = 1
 					tFrm.faction:SetTexture("Interface\\Icons\\achievement_pvp_h_16")
+					SetMapZoom(continent,zone)
+					return false
 				elseif textureIndex == 46 then --alliance
+					tFrm.currFaction = 2
 					tFrm.faction:SetTexture("Interface\\Icons\\achievement_pvp_a_16")
-				elseif textureIndex == 101 then
-					tFrm.faction:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-				else
-					tFrm.faction:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+					SetMapZoom(continent,zone)
+					return false
 				end
 			end
 		end
-		SetMapZoom(continent,zone)
+		
+		--something went wrong check to see if we have a stored value
+		if tFrm.currFaction == 1 then --Horde
+			tFrm.faction:SetTexture("Interface\\Icons\\achievement_pvp_h_16")
+			return false
+		elseif tFrm.currFaction == 2 then --Alliance
+			tFrm.faction:SetTexture("Interface\\Icons\\achievement_pvp_a_16")
+			return false
+		end
+		--oblivously we still don't have a clue so request an update
+		tFrm.currFaction = 0
+		tFrm.faction:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+		return true
+		
 	end
+	
+	return false
 end
 
+function f:requestUpdate()
+	--this method will ask for an update from anyone else whom has this installed, via guild and party
+	SendAddonMessage( "XWPT", "upt", "GUILD")
+	SendAddonMessage( "XWPT", "upt", "PARTY")
+end
+
+function f:CHAT_MSG_ADDON(event, prefix, message, msgtype, sender)
+    if (prefix == "XWPT") then
+		--don't do an update for ourself LOL
+
+		--print("Got", prefix, message, msgtype, sender)
+	   if message == "upt" and sender ~= UnitName("player") then
+			local sentString = ""
+			--generate an update string
+			for i=1, GetNumWorldPVPAreas() do
+				local pvpID, localizedName, isActive, canQueue, startTime, canEnter = GetWorldPVPAreaInfo(i)
+				local tFrm = _G[string.format("xanWorldPVPTimers_%s", localizedName)]
+				if tFrm then
+					sentString = sentString..i..","..tFrm.currFaction..";"
+				end
+			end
+			if string.len(sentString) > 0 then
+				SendAddonMessage( "XWPT", sentString, "GUILD")
+				SendAddonMessage( "XWPT", sentString, "PARTY")
+			end
+			
+		elseif sender ~= UnitName("player") then
+			--process message
+	   end
+    end
+end
 
 --[[------------------------
 	LAYOUT SAVE/RESTORE
