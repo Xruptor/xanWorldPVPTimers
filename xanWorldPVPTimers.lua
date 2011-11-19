@@ -315,14 +315,14 @@ function f:PLAYER_ENTERING_WORLD()
 	f:getClaimIcons()
 end
 
-function f:getClaimIcons()
+function f:getClaimIcons(sSwitch)
 	local sendReq = false
 	--get wintergrasp data
 	if self:WGMapControlled() then sendReq = true end
 	--get tol barad data
 	if self:TBMapControlled() then sendReq = true end
 	--send a request only if it's requested
-	if sendReq then self:requestUpdate() end
+	if sendReq and not sSwitch then self:requestUpdate() end
 end
 
 function f:TBMapControlled()
@@ -442,16 +442,17 @@ end
 function f:CHAT_MSG_ADDON(event, prefix, message, msgtype, sender)
     if (prefix == "XWPT") then
 		--don't do an update for ourself LOL
-
-		--print("Got", prefix, message, msgtype, sender)
+		--print("MSG:", prefix, message, msgtype, sender)
+		
 	   if message == "upt" and sender ~= UnitName("player") then
 			local sentString = ""
 			--generate an update string
 			for i=1, GetNumWorldPVPAreas() do
 				local pvpID, localizedName, isActive, canQueue, startTime, canEnter = GetWorldPVPAreaInfo(i)
 				local tFrm = _G[string.format("xanWorldPVPTimers_%s", localizedName)]
-				if tFrm then
-					sentString = sentString..i..","..tFrm.currFaction..";"
+				--only send faction updates, not in battle, or unknown ;P
+				if tFrm and tFrm.currFaction > 0 and tFrm.currFaction < 3 then
+					sentString = sentString..i..tFrm.currFaction
 				end
 			end
 			if string.len(sentString) > 0 then
@@ -459,10 +460,35 @@ function f:CHAT_MSG_ADDON(event, prefix, message, msgtype, sender)
 				SendAddonMessage( "XWPT", sentString, "PARTY")
 			end
 			
-		elseif sender ~= UnitName("player") then
-			--process message
+		elseif sender ~= UnitName("player") and string.len(message) > 0 then
+			--if we only two characters then only one faction update was sent, if it was 4 then both WG and TB
+			if string.len(message) == 2 then
+				--update only one faction was sent
+				f:setFactionStatus(string.sub(message, 1, 1), string.sub(message, 2))
+			elseif string.len(message) == 4 then
+				--both TB and WG were sent
+				f:setFactionStatus(string.sub(message, 1, 1), string.sub(message, 2, 2))
+				f:setFactionStatus(string.sub(message, 3, 3), string.sub(message, 4))
+			end
 	   end
     end
+	
+end
+
+function f:setFactionStatus(frmNum, factionNum)
+	frmNum = tonumber(frmNum)
+	factionNum = tonumber(factionNum)
+
+	if frmNum and factionNum then
+		local pvpID, localizedName, isActive, canQueue, startTime, canEnter = GetWorldPVPAreaInfo(frmNum)
+		local tFrm = _G[string.format("xanWorldPVPTimers_%s", localizedName)]
+		--if the faction num doesn't match then force update it
+		if tFrm and tFrm.currFaction ~= factionNum then
+			tFrm.currFaction = factionNum
+			--force an update but don't freaking request another update, otherwise loop from hell
+			f:getClaimIcons(true)
+		end
+	end
 end
 
 --[[------------------------
