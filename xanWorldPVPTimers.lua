@@ -435,8 +435,15 @@ end
 
 function f:requestUpdate()
 	--this method will ask for an update from anyone else whom has this installed, via guild and party
-	SendAddonMessage( "XWPT", "upt", "GUILD")
-	SendAddonMessage( "XWPT", "upt", "PARTY")
+	if IsInGuild() then
+		SendAddonMessage( "XWPT", "upt", "GUILD")
+	end
+	if GetNumPartyMembers() > 0 then
+		SendAddonMessage( "XWPT", "upt", "PARTY")
+	end
+	if GetNumRaidMembers() > 0 then
+		SendAddonMessage( "XWPT", "upt", "RAID")
+	end
 end
 
 function f:CHAT_MSG_ADDON(event, prefix, message, msgtype, sender)
@@ -456,8 +463,15 @@ function f:CHAT_MSG_ADDON(event, prefix, message, msgtype, sender)
 				end
 			end
 			if string.len(sentString) > 0 then
-				SendAddonMessage( "XWPT", sentString, "GUILD")
-				SendAddonMessage( "XWPT", sentString, "PARTY")
+				if IsInGuild() then
+					SendAddonMessage( "XWPT", sentString, "GUILD")
+				end
+				if GetNumPartyMembers() > 0 then
+					SendAddonMessage( "XWPT", sentString, "PARTY")
+				end
+				if GetNumRaidMembers() > 0 then
+					SendAddonMessage( "XWPT", sentString, "RAID")
+				end
 			end
 			
 		elseif sender ~= UnitName("player") and string.len(message) > 0 then
